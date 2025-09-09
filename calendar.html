@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#fdf2f8">
+  <title>Calendário</title>
+  <style>
+    :root{
+      --bg:#fdf2f8;          /* fundo rosa clarinho */
+      --panel:#ffffff;       /* cartões/painéis */
+      --muted:#64748b;       /* textos suaves */
+      --text:#0f172a;        /* texto principal */
+      --accent:#ec4899;      /* rosa acento */
+      --accent-2:#fce7f3;    /* rosa mais claro */
+      --ring:0 0 0 3px rgba(236,72,153,.25);
+      --border:1px solid rgba(15,23,42,.08);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+      background:radial-gradient(80% 60% at 50% -10%, #ffe4f1 0%, #fdf2f8 60%, #ffffff 100%);
+      color:var(--text)
+    }
+
+    .wrap{max-width:1100px; margin:24px auto; padding:16px}
+
+    .top{display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap}
+    .title{font-weight:800; letter-spacing:.3px}
+    .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .btn{border:1px solid rgba(236,72,153,.45); background:var(--accent-2); color:var(--text); padding:10px 12px; border-radius:10px; cursor:pointer}
+    .btn:hover{filter:brightness(1.05)}
+    .jump{display:flex; gap:8px}
+    select{appearance:none; border:1px solid rgba(15,23,42,.12); background:#fff; color:var(--text); padding:10px 12px; border-radius:10px}
+
+    .grid{display:grid; grid-template-columns:repeat(7,1fr); gap:8px; overflow-x:auto}
+    .weekday{font-size:12px; text-transform:uppercase; color:var(--muted); letter-spacing:.1em; padding:6px 4px}
+
+    .cell{
+      background:linear-gradient(180deg,rgba(236,72,153,.06),rgba(236,72,153,.03));
+      border:var(--border); min-height:110px; border-radius:12px; padding:8px; position:relative; display:flex; flex-direction:column; gap:6px
+    }
+    .cell.out{opacity:.45}
+    .cell.today{border:2px solid rgba(236,72,153,.55)} /* destaque do dia atual */
+    .day{font-weight:700; font-size:13px; color:#9d174d}
+    .events{display:flex; flex-direction:column; gap:4px; max-height:90px; overflow:auto; padding-right:2px}
+    .event{
+      font-size:12px; line-height:1.25; padding:6px 8px; border-radius:8px;
+      border:1px solid rgba(15,23,42,.08); background:#ffffff; cursor:pointer
+    }
+    .event.badge-imp{background:#fce7f3; border-color:rgba(236,72,153,.55)}
+    .event.badge-pessoal{background:#fde2f2; border-color:rgba(236,72,153,.45)}
+    .event.badge-trabalho{background:#fff1f7; border-color:rgba(236,72,153,.35)}
+
+    .add{margin-top:auto}
+    .add button{width:100%; border:1px dashed rgba(236,72,153,.45); background:transparent; color:#7a2948; padding:8px; border-radius:10px; cursor:pointer}
+    .add button:hover{background:rgba(236,72,153,.08)}
+
+    dialog{border:none; border-radius:16px; padding:0; overflow:hidden; color:var(--text); max-width:520px}
+    .modal{background:var(--panel); border:var(--border)}
+    .modal .hd{display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:var(--border)}
+    .modal .bd{padding:14px 16px; display:grid; gap:10px}
+    .modal input[type="text"], .modal textarea{width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(15,23,42,.12); background:#fff; color:var(--text)}
+    .modal input[type="text"]:focus, .modal textarea:focus{outline:none; box-shadow:var(--ring); border-color:rgba(236,72,153,.5)}
+    .modal textarea{min-height:90px; resize:vertical}
+    .chips{display:flex; gap:8px; flex-wrap:wrap}
+    .chip{padding:6px 10px; border-radius:999px; border:1px solid rgba(236,72,153,.55); background:#fff; cursor:pointer; font-size:12px}
+    .chip.active{background:#fce7f3}
+    .list{display:flex; flex-direction:column; gap:6px; max-height:160px; overflow:auto}
+    .row{display:flex; align-items:center; justify-content:space-between; gap:8px; border:var(--border); border-radius:10px; padding:8px 10px; background:#fff}
+    .row .meta{font-size:12px; color:var(--muted)}
+    .row .actions{display:flex; gap:6px}
+    .modal .ft{display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:var(--border)}
+
+    .muted{color:var(--muted)}
+
+    /* Responsividade */
+    @media (max-width: 800px){
+      .wrap{padding:12px}
+      .grid{gap:6px}
+      .cell{min-height:90px}
+      .events{max-height:70px}
+      .weekday{font-size:11px}
+    }
+    @media (max-width: 600px){
+      .wrap{margin:12px auto}
+      .grid{gap:4px}
+      .cell{min-height:80px; border-radius:10px; padding:6px}
+      .day{font-size:12px}
+      .event{font-size:11px; padding:5px 6px; border-radius:8px}
+      .events{max-height:60px}
+      .controls{gap:6px}
+      .btn{padding:8px 10px}
+      select{padding:8px 10px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="title">Calendário</div>
+        <div class="muted" id="subtitle"></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="prev">◀</button>
+        <div class="jump">
+          <select id="m"></select>
+          <select id="y"></select>
+        </div>
+        <button class="btn" id="next">▶</button>
+        <button class="btn" id="today">Hoje</button>
+      </div>
+    </div>
+
+    <div class="grid" id="head"></div>
+    <div class="grid" id="cal"></div>
+  </div>
+
+  <dialog id="dlg" class="modal">
+    <div class="hd">
+      <div id="dlgTitle">Adicionar/Editar eventos</div>
+      <button class="btn" id="closeDlg">×</button>
+    </div>
+    <div class="bd">
+      <div class="muted">Evento selecionado</div>
+      <div class="list" id="evList"></div>
+      <div class="muted">Novo evento</div>
+      <input id="evTitle" type="text" placeholder="Título" />
+      <textarea id="evDesc" placeholder="Notas (opcional)"></textarea>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="ft">
+      <button class="btn" id="save">Adicionar</button>
+    </div>
+  </dialog>
+
+  <script>
+    // ===== Util =====
+    const pad = n => String(n).padStart(2,'0');
+    const ym = (y,m)=> `${y}-${pad(m+1)}`;         // chave do mês
+    const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+    // ===== Estado =====
+    const today = new Date();
+    let cur = new Date(today.getFullYear(), today.getMonth(), 1);
+    let data = load(); // { 'YYYY-MM': { 'YYYY-MM-DD': [ {id,t,d,tag} ] } }
+
+    const TAGS = [
+      { id:'imp', label:'Importante' },
+      { id:'trabalho', label:'Trabalho' },
+      { id:'pessoal', label:'Pessoal' }
+    ];
+
+    // ===== Persistência =====
+    function load(){
+      try{ return JSON.parse(localStorage.getItem('calendar-data-v2')) || migrate() }catch{ return migrate() }
+    }
+    function save(){ localStorage.setItem('calendar-data-v2', JSON.stringify(data)); }
+    // Migração simples da v1 (um evento por dia) para v2 (múltiplos)
+    function migrate(){
+      try{
+        const v1 = JSON.parse(localStorage.getItem('calendar-data')) || {};
+        const v2 = {};
+        for(const m in v1){
+          v2[m] = {};
+          for(const d in v1[m]){
+            const ev = v1[m][d];
+            v2[m][d] = Array.isArray(ev) ? ev.map(e=>({id:uid(),...e})) : [{id:uid(),...ev}];
+          }
+        }
+        localStorage.setItem('calendar-data-v2', JSON.stringify(v2));
+        return v2;
+      }catch{ return {} }
+    }
+
+    // ===== Cabeçalho dos dias =====
+    const head = document.getElementById('head');
+    const names = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    names.forEach(n=>{
+      const el = document.createElement('div');
+      el.className = 'weekday';
+      el.textContent = n;
+      head.appendChild(el);
+    });
+
+    // ===== Controles de mês/ano =====
+    const mSel = document.getElementById('m');
+    const ySel = document.getElementById('y');
+    const subtitle = document.getElementById('subtitle');
+
+    for(let m=0;m<12;m++){
+      const o = document.createElement('option');
+      o.value = m; o.textContent = new Date(2000,m,1).toLocaleString('pt-BR',{month:'long'});
+      mSel.appendChild(o);
+    }
+    const y0 = today.getFullYear()-5, y1 = today.getFullYear()+5;
+    for(let y=y0;y<=y1;y++){
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y; ySel.appendChild(o);
+    }
+
+    document.getElementById('prev').onclick = ()=>{ cur = new Date(cur.getFullYear(), cur.getMonth()-1, 1); render(); };
+    document.getElementById('next').onclick = ()=>{ cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1); render(); };
+    document.getElementById('today').onclick = ()=>{ cur = new Date(today.getFullYear(), today.getMonth(), 1); render(); };
+
+    mSel.onchange = ()=>{ cur = new Date(cur.getFullYear(), Number(mSel.value), 1); render(); };
+    ySel.onchange = ()=>{ cur = new Date(Number(ySel.value), cur.getMonth(), 1); render(); };
+
+    // ===== Render =====
+    const cal = document.getElementById('cal');
+
+    function render(){
+      mSel.value = cur.getMonth();
+      ySel.value = cur.getFullYear();
+      subtitle.textContent = new Intl.DateTimeFormat('pt-BR',{month:'long', year:'numeric'}).format(cur);
+
+      cal.innerHTML = '';
+      const first = new Date(cur.getFullYear(), cur.getMonth(), 1);
+      const start = new Date(first);
+      start.setDate(first.getDate() - ((first.getDay()+7)%7)); // domingo anterior
+      for(let i=0;i<42;i++){
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
+        cal.appendChild(dayCell(d));
+      }
+    }
+
+    function dayCell(d){
+      const keyMonth = ym(cur.getFullYear(), cur.getMonth());
+      const key = ymd(d);
+      const monthData = data[keyMonth] || {};
+      const events = monthData[key] || [];
+
+      const el = document.createElement('div');
+      el.className = 'cell' + (d.getMonth()!==cur.getMonth()? ' out':'' );
+      
+      // destaque do dia atual
+      const todayKey = ymd(new Date());
+      if(key === todayKey){ el.classList.add('today'); }
+
+      const hd = document.createElement('div');
+      hd.className = 'day';
+      hd.textContent = d.getDate();
+      el.appendChild(hd);
+
+      const list = document.createElement('div');
+      list.className = 'events';
+      events.forEach(ev=>{
+        const e = document.createElement('div');
+        e.className = 'event'+ (ev.tag? ` badge-${ev.tag}`:'');
+        e.textContent = ev.t;
+        e.title = ev.d || '';
+        e.onclick = ()=> openDialog(d, ev.id);
+        list.appendChild(e);
+      });
+      el.appendChild(list);
+
+      const add = document.createElement('div');
+      add.className = 'add';
+      const btn = document.createElement('button');
+      btn.textContent = 'Adicionar';
+      btn.onclick = ()=> openDialog(d, null);
+      add.appendChild(btn);
+      el.appendChild(add);
+
+      return el;
+    }
+
+    // ===== Modal =====
+    const dlg = document.getElementById('dlg');
+    const evTitle = document.getElementById('evTitle');
+    const evDesc = document.getElementById('evDesc');
+    const chips = document.getElementById('chips');
+    const saveBtn = document.getElementById('save');
+    const evList = document.getElementById('evList');
+    const dlgTitle = document.getElementById('dlgTitle');
+    const closeDlg = document.getElementById('closeDlg');
+
+    TAGS.forEach(t=>{
+      const c = document.createElement('button');
+      c.type='button'; c.className='chip'; c.textContent=t.label; c.dataset.id=t.id;
+      c.onclick = ()=>{
+        chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+        c.classList.add('active');
+      };
+      chips.appendChild(c);
+    });
+
+    let dlgDate = null; // Date
+    let editingId = null; // id do evento que está sendo editado (se houver)
+
+    function openDialog(d, eventId){
+      dlgDate = d;
+      editingId = eventId;
+      dlgTitle.textContent = 'Eventos em '+ d.toLocaleDateString('pt-BR');
+      // Preenche lista
+      renderList();
+      // Se veio com um id, pré-carrega no formulário
+      if(eventId){
+        const { ev } = getEvent(d, eventId) || {};
+        evTitle.value = ev?.t || '';
+        evDesc.value = ev?.d || '';
+        chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+        if(ev?.tag){ chips.querySelector(`[data-id="${ev.tag}"]`)?.classList.add('active'); }
+      }else{
+        evTitle.value=''; evDesc.value=''; chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+      }
+      dlg.showModal();
+    }
+
+    function getEvent(d, id){
+      const keyM = ym(cur.getFullYear(), cur.getMonth());
+      const k = ymd(d);
+      const arr = (data[keyM]||{})[k] || [];
+      const idx = arr.findIndex(x=>x.id===id);
+      return idx>=0 ? { arr, idx, ev: arr[idx], keyM, k } : null;
+    }
+
+    function renderList(){
+      evList.innerHTML = '';
+      const keyM = ym(cur.getFullYear(), cur.getMonth());
+      const k = ymd(dlgDate);
+      const arr = (data[keyM]||{})[k] || [];
+      if(arr.length===0){
+        const p = document.createElement('div');
+        p.className='muted';
+        p.textContent='Nenhum evento neste dia.';
+        evList.appendChild(p);
+        return;
+      }
+      arr.forEach(ev=>{
+        const row = document.createElement('div');
+        row.className = 'row';
+        const left = document.createElement('div');
+        left.innerHTML = `<div><strong>${ev.t}</strong></div><div class="meta">${ev.d||''} ${ev.tag? '· '+ev.tag:''}</div>`;
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const edit = document.createElement('button');
+        edit.className='btn'; edit.textContent='Editar';
+        edit.onclick = ()=>{ openDialog(dlgDate, ev.id); };
+        const del = document.createElement('button');
+        del.className='btn'; del.textContent='Apagar';
+        del.onclick = ()=>{
+          const ctx = getEvent(dlgDate, ev.id);
+          if(!ctx) return;
+          ctx.arr.splice(ctx.idx,1);
+          if(ctx.arr.length===0){ delete data[ctx.keyM][ctx.k]; if(Object.keys(data[ctx.keyM]).length===0) delete data[ctx.keyM]; }
+          save();
+          renderList();
+          render();
+        };
+        actions.appendChild(edit); actions.appendChild(del);
+        row.appendChild(left); row.appendChild(actions);
+        evList.appendChild(row);
+      });
+    }
+
+    closeDlg.onclick = ()=> dlg.close();
+
+    saveBtn.onclick = ()=>{
+      if(!dlgDate) return;
+      const t = evTitle.value.trim();
+      if(!t){ alert('Dê um título ao evento.'); return; }
+      const dsc = evDesc.value.trim();
+      const tag = chips.querySelector('.chip.active')?.dataset.id || '';
+
+      const keyM = ym(cur.getFullYear(), cur.getMonth());
+      if(!data[keyM]) data[keyM] = {};
+      const k = ymd(dlgDate);
+      if(!data[keyM][k]) data[keyM][k] = [];
+
+      if(editingId){
+        const ctx = getEvent(dlgDate, editingId);
+        if(ctx){ ctx.arr[ctx.idx] = { ...ctx.ev, t, d:dsc, tag }; }
+      }else{
+        data[keyM][k].push({ id: uid(), t, d: dsc, tag });
+      }
+      save();
+      // limpa formulário para adicionar outro rapidamente
+      editingId = null; evTitle.value=''; evDesc.value=''; chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+      renderList();
+      render();
+    };
+
+    // Inicial
+    render();
+
+    // Atualiza o destaque do "hoje" automaticamente na virada do dia (00:00)
+    function scheduleMidnight(){
+      const now = new Date();
+      const msToMidnight = 24*60*60*1000 - (now.getHours()*3600000 + now.getMinutes()*60000 + now.getSeconds()*1000 + now.getMilliseconds());
+      setTimeout(()=>{ render(); scheduleMidnight(); }, msToMidnight);
+    }
+    scheduleMidnight();
+  </script>
+</body>
+</html>

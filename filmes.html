@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#fdf2f8">
+  <title>CineList — Sem Token (iTunes)</title>
+  <style>
+    :root{
+      --bg:#fdf2f8; --card:#fff; --text:#0f172a; --muted:#64748b;
+      --accent:#ec4899; --accent-weak:#fde2f2; --border:1px solid rgba(15,23,42,.12);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; color:var(--text);
+      background:radial-gradient(80% 60% at 50% -10%, #ffe4f1 0%, #fdf2f8 60%, #ffffff 100%);
+    }
+    .wrap{max-width:1100px; margin:24px auto; padding:0 16px}
+    header{position:sticky; top:0; z-index:10; background:var(--card); border-bottom:var(--border)}
+    .bar{display:flex; gap:10px; align-items:center; padding:12px 0}
+    .brand{font-weight:800}
+    .muted{color:var(--muted); font-size:13px; margin-left:auto}
+
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .input{flex:1 1 360px; padding:12px 14px; border-radius:12px; border:1px solid rgba(15,23,42,.18); background:#fff; outline:none}
+    .btn{padding:10px 14px; border-radius:12px; border:1px solid rgba(236,72,153,.45); background:#fce7f3; cursor:pointer}
+    .btn:hover{filter:brightness(1.05)}
+
+    .columns{display:grid; grid-template-columns:1fr 360px; gap:16px}
+    @media (max-width:1000px){ .columns{grid-template-columns:1fr} }
+    .card{background:var(--card); border:var(--border); border-radius:16px; padding:14px}
+
+    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px}
+    .item{border:1px solid rgba(15,23,42,.12); border-radius:14px; overflow:hidden; background:#fff; display:flex; flex-direction:column}
+    .poster{width:100%; aspect-ratio:2/3; object-fit:cover; background:#fff}
+    .body{padding:10px; display:grid; gap:6px}
+    .title{font-weight:700; line-height:1.2}
+    .sub{font-size:12px; color:var(--muted)}
+    .pill{font-size:11px; border:1px solid rgba(15,23,42,.12); border-radius:999px; padding:2px 8px; background:#fafafa; width:max-content}
+
+    footer{padding:16px; text-align:center; color:var(--muted); font-size:12px}
+    .danger{border-color:rgba(239,68,68,.35); background:#ffe4e6}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap bar">
+      <div class="brand">CineList</div>
+      <div class="muted">iTunes Search • Sem token</div>
+    </div>
+  </header>
+
+  <main class="wrap" style="padding:16px 0 32px;">
+    <div class="card" style="position:sticky; top:60px; z-index:5; margin-bottom:12px;">
+      <div class="row">
+        <input id="q" class="input" placeholder="Digite o nome do filme…" />
+        <button id="go" class="btn">Buscar</button>
+      </div>
+      <div id="status" class="muted" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="columns">
+      <section class="card">
+        <div style="font-weight:800; margin-bottom:6px;">Resultados</div>
+        <div id="results" class="grid"></div>
+        <div id="emptyResults" class="muted" style="display:none;">Nada encontrado. Tenta outro título.</div>
+      </section>
+
+      <aside class="card">
+        <div style="font-weight:800; margin-bottom:6px;">Minha lista de assistir</div>
+        <div id="list" class="grid" style="grid-template-columns:1fr;"></div>
+        <div id="emptyList" class="muted">Sua lista está vazia.</div>
+        <div class="row" style="margin-top:10px;">
+          <button id="clear" class="btn danger">Limpar lista</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer>Dados e capas via iTunes Search API.</footer>
+
+<script>
+(() => {
+  // ===== Helpers =====
+  const $ = (id) => document.getElementById(id);
+  const svgPlaceholder = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="100%" height="100%" fill="#f8fafc"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#94a3b8">Sem pôster</text></svg>'
+  )}`;
+  // Aumenta a arte quadrada do iTunes (ex.: 100x100bb.jpg -> 600x600bb.jpg)
+  function upscaleArtwork(url, size = 600){
+    if(!url) return svgPlaceholder;
+    return url.replace(/\/\d+x\d+(?=bb\.)/, `/${size}x${size}`);
+  }
+  const year = (s) => (s ? new Date(s).getFullYear() : '');
+  const truncate = (s, n=160) => s && s.length>n ? s.slice(0,n-1)+'…' : (s||'');
+
+  // ===== Estado (localStorage) =====
+  const LS_KEY = "watchlist@cinelist";
+  const readList = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } };
+  const writeList = (arr) => localStorage.setItem(LS_KEY, JSON.stringify(arr));
+  let watchlist = readList();
+
+  // ===== DOM =====
+  const q = $("q"), go = $("go"), status = $("status");
+  const results = $("results"), emptyResults = $("emptyResults");
+  const list = $("list"), emptyList = $("emptyList"), clearBtn = $("clear");
+
+  // ===== Busca (iTunes, sem token) =====
+  async function searchMovies(term){
+    status.textContent = "Buscando…";
+    emptyResults.style.display = "none";
+    results.innerHTML = "";
+    try{
+      const url = new URL("https://itunes.apple.com/search");
+      url.searchParams.set("media", "movie");
+      url.searchParams.set("country", "BR");
+      url.searchParams.set("lang", "pt_br");
+      url.searchParams.set("limit", "24");
+      url.searchParams.set("term", term);
+
+      const r = await fetch(url.toString());
+      if(!r.ok) throw new Error("Erro na API");
+      const data = await r.json();
+      renderResults(data.results || []);
+      status.textContent = `Encontrados: ${data.resultCount || 0}`;
+    }catch(e){
+      console.error(e);
+      status.textContent = "Falha na busca.";
+      emptyResults.style.display = "block";
+    }
+  }
+
+  function renderResults(items){
+    results.innerHTML = "";
+    if(!items.length){ emptyResults.style.display = "block"; return; }
+    // iTunes retorna quadrado (arte de loja). Usamos como "pôster" cortando para 2:3.
+    items.forEach(m => {
+      const id = m.trackId || m.collectionId || (m.trackName + m.releaseDate);
+      const inList = watchlist.some(w => w.id === id);
+      const title = m.trackName || m.collectionName || "Sem título";
+      const poster = upscaleArtwork(m.artworkUrl100, 600);
+      const el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML = `
+        <img class="poster" src="${poster}" alt="" loading="lazy" />
+        <div class="body">
+          <div class="title">${title}</div>
+          <div class="sub">${year(m.releaseDate)} • ${m.primaryGenreName || ""}</div>
+          ${m.longDescription ? `<div class="pill" title="${title}">Descrição</div>` : ""}
+          <button class="btn" data-id="${id}">${inList ? "Remover da lista" : "Adicionar à lista"}</button>
+        </div>`;
+      el.querySelector("button").onclick = () => toggleWatch({id, title, year: year(m.releaseDate), poster});
+      results.appendChild(el);
+    });
+  }
+
+  // ===== Lista =====
+  function toggleWatch(movie){
+    const exists = watchlist.some(w => w.id === movie.id);
+    if(exists){
+      watchlist = watchlist.filter(w => w.id !== movie.id);
+    }else{
+      watchlist = [movie, ...watchlist];
+    }
+    writeList(watchlist);
+    renderList();
+    // Atualiza texto dos botões nos resultados
+    document.querySelectorAll('#results .item .btn').forEach(btn => {
+      const id = btn.dataset.id;
+      btn.textContent = watchlist.some(w => String(w.id) === String(id)) ? "Remover da lista" : "Adicionar à lista";
+    });
+  }
+
+  function renderList(){
+    list.innerHTML = "";
+    emptyList.style.display = watchlist.length ? "none":"block";
+    watchlist.forEach(m => {
+      const el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML = `
+        <img class="poster" src="${m.poster}" alt="" loading="lazy" />
+        <div class="body">
+          <div class="title">${m.title}</div>
+          <div class="sub">${m.year||""}</div>
+          <button class="btn danger" data-id="${m.id}">Remover</button>
+        </div>`;
+      el.querySelector("button").onclick = () => {
+        watchlist = watchlist.filter(w => w.id!==m.id);
+        writeList(watchlist); renderList();
+      };
+      list.appendChild(el);
+    });
+  }
+
+  // ===== UI wiring =====
+  go.onclick = () => { const term = q.value.trim(); if(term) searchMovies(term); };
+  q.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ const term=q.value.trim(); if(term) searchMovies(term); }});
+  clearBtn.onclick = ()=> { if(confirm("Limpar sua lista?")){ watchlist = []; writeList(watchlist); renderList(); } };
+
+  // Inicial
+  renderList();
+})();
+</script>
+</body>
+</html>

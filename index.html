@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#fdf2f8">
+  <title>Hub Pessoal</title>
+  <style>
+    :root{
+      --bg:#fdf2f8; --panel:#ffffff; --muted:#64748b; --text:#0f172a; --accent:#ec4899; --accent-2:#fce7f3;
+      --border:1px solid rgba(15,23,42,.12);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+      background:radial-gradient(80% 60% at 50% -10%, #ffe4f1 0%, #fdf2f8 60%, #ffffff 100%);
+      color:var(--text)
+    }
+    .wrap{max-width:1200px; margin:24px auto; padding:16px}
+
+    .grid{display:grid; grid-template-columns: 360px 1fr; gap:16px}
+    @media (max-width: 960px){ .grid{grid-template-columns: 1fr;}}
+
+    /* ESQUERDA: retângulo com botões */
+    .menu{
+      background:linear-gradient(180deg,rgba(236,72,153,.06),rgba(236,72,153,.03));
+      border:var(--border); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px
+    }
+    .menu h3{margin:0 0 6px 0; font-size:16px; font-weight:700; color:#9d174d}
+    .btn{
+      display:block; width:100%; border:1px solid rgba(236,72,153,.45); background:var(--accent-2); color:#7a2948;
+      padding:14px 16px; border-radius:12px; text-decoration:none; font-weight:600; transition:.18s ease-in-out
+    }
+    .btn:hover{filter:brightness(1.08); transform: translateY(-1px); background:#ffd9ec}
+
+    /* DIREITA: vitrine da imagem */
+    .panel{background:#fff; border:var(--border); border-radius:16px; min-height:420px; position:relative}
+    .stage{
+      width:100%;
+      min-height:420px;                /* altura confortável em desktop */
+      display:flex; align-items:center; justify-content:center; padding:12px;
+    }
+    @media (max-width:960px){ .stage{min-height:320px;} }
+    .stage img{
+      width:100%; height:100%;
+      object-fit:contain;              /* respeita a proporção sem cortar */
+      filter: drop-shadow(0 10px 30px rgba(0,0,0,.15));
+      border-radius:12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <!-- ESQUERDA -->
+      <nav class="menu" id="menu">
+        <h3>Projetos</h3>
+        <!-- Botões via JS -->
+      </nav>
+
+      <!-- DIREITA: apenas a imagem -->
+      <section class="panel">
+        <div class="stage">
+          <img src="./b7a4ddc7-1ff2-44d8-99a1-781b2cc7f3cc.png" alt="Imagem do hub" loading="eager">
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // === Lista de projetos (edite aqui) ===
+    const PROJECTS = [
+      { label: "Calendário de Datas", href: "calendar.html" },
+      { label: "Lista de Restaurantes", href: "restaurants.html" },
+      { label: "Calendário", href: "calendar.html" },
+      { label: "First Kiss", href: "Timer.html" },
+      { label: "Filmes", href: "filmes.html" }
+    ];
+
+    const menu = document.getElementById('menu');
+
+    function renderMenu(){
+      menu.querySelectorAll('a.btn').forEach(el => el.remove());
+      PROJECTS.forEach(p => {
+        const a = document.createElement('a');
+        a.className = 'btn';
+        a.href = p.href;
+        a.textContent = p.label;
+        a.target = '_self';
+        menu.appendChild(a);
+      });
+    }
+    renderMenu();
+  </script>
+</body>
+</html>
